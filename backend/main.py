@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 import os
 
 import models as catalogue
+from models import EmptyResponse
 
 load_dotenv()
 
@@ -35,6 +36,24 @@ EXTRA_HEADERS = {
     "HTTP-Referer": "https://mindmentor.ai",
     "X-Title": "MindMentor",
 }
+
+
+def _first_message(completion: Any) -> str:
+    """The assistant's text, or a clear error if the provider sent none.
+
+    A free or overloaded provider can return a 200 whose `choices` is null.
+    Indexing that raises "NoneType object is not subscriptable", which tells
+    nobody anything and, worse, is not retryable, so the fallback chain would
+    give up on a fault that another model would have handled.
+    """
+    choices = getattr(completion, "choices", None)
+    if not choices:
+        detail = getattr(completion, "error", None)
+        raise EmptyResponse(
+            f"provider returned no choices: {detail}" if detail
+            else "provider returned no choices (it may be rate limited)"
+        )
+    return choices[0].message.content or ""
 
 
 def _usage(completion: Any, model: "catalogue.Model") -> Dict[str, Any]:
@@ -130,10 +149,11 @@ def chat(request: ChatRequest):
                 max_tokens=catalogue.MAX_TOKENS,
             )
 
+            content = _first_message(completion)
             usage = _usage(completion, model)
             return {
                 "model_used": model.name,
-                "response": completion.choices[0].message.content,
+                "response": content,
                 "status": "success",
                 "tokens_used": usage.get("total_tokens"),
                 "fallback_used": model.model_id != requested.model_id,
@@ -177,7 +197,7 @@ def generate(request: PromptRequest):
         )
         return {
             "model_used": model.name,
-            "response": completion.choices[0].message.content,
+            "response": _first_message(completion),
             "status": "success",
             "usage": _usage(completion, model),
         }

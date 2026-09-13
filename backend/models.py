@@ -1,7 +1,7 @@
 """The model catalogue, and the rules for falling back between models.
 
-The frontend talks in friendly names ("DeepSeek"); OpenRouter wants ids
-("deepseek/deepseek-r1:free"). Keeping the mapping here means the request
+The frontend talks in friendly names ("Mistral Nemo"); OpenRouter wants ids
+("mistralai/mistral-nemo"). Keeping the mapping here means the request
 body can never name a model that is not in this file, so the endpoint cannot
 be used to bill arbitrary models against the key.
 """
@@ -21,14 +21,15 @@ class Model:
 
 
 CATALOGUE: List[Model] = [
-    # Free tier stays first, and stays the default, so a clone with a fresh
-    # key and no credit on it still works out of the box.
-    Model("DeepSeek",    "deepseek/deepseek-r1:free",
-          "Reasoning model, free tier", "DeepSeek", "free"),
-    Model("LLaMA",       "meta-llama/llama-3.3-70b-instruct:free",
-          "Open weights, free tier", "Meta", "free"),
-    Model("Minimax",     "minimax/minimax-m2:free",
-          "Balanced, free tier", "MiniMax", "free"),
+    # The free tier is a courtesy, not the default. This project used to run
+    # entirely on deepseek-r1:free, llama-3.3-70b:free and minimax-m2:free,
+    # and OpenRouter has since withdrawn all three, which left every chat
+    # failing. What is here now was checked against the live catalogue, but
+    # free slugs get withdrawn and rate limited, so nothing depends on them.
+    Model("Nemotron Super",     "nvidia/nemotron-3-super-120b-a12b:free",
+          "Capable, free tier", "NVIDIA", "free"),
+    Model("Nemotron Lightning", "nvidia/nemotron-3.5-lightning:free",
+          "Quick, free tier", "NVIDIA", "free"),
 
     Model("Mistral Nemo", "mistralai/mistral-nemo",
           "Cheapest paid option, quick", "Mistral", "cheap"),
@@ -55,7 +56,9 @@ CATALOGUE: List[Model] = [
 ]
 
 BY_NAME = {m.name: m for m in CATALOGUE}
-DEFAULT_NAME = os.getenv("DEFAULT_MODEL_NAME", "DeepSeek")
+# A paid model by default, at roughly $0.00002 a turn: a thousand messages
+# costs about two cents, and unlike the free tier it will not 429 or vanish.
+DEFAULT_NAME = os.getenv("DEFAULT_MODEL_NAME", "Mistral Nemo")
 
 TEMPERATURE = float(os.getenv("TEMPERATURE", "0.7"))
 MAX_TOKENS = int(os.getenv("MAX_TOKENS", "4000"))
@@ -67,15 +70,22 @@ def resolve(name: Optional[str]) -> Model:
 
 
 def fallback_chain(first: Model) -> List[Model]:
-    """The requested model, then the free ones, as a safety net.
+    """The requested model, then free ones, then the cheapest paid one.
 
-    Only free models are used as fallbacks. Silently retrying a paid request
-    against other paid models would multiply the bill for one failure, and the
-    person who picked Sonnet did not ask to be charged for GPT-5.1 as well.
+    Never another expensive model: someone who picked Sonnet did not ask to
+    be charged for GPT-5.1 too. The free tier goes first, but it is exactly
+    what rate limits during a rush, so the cheapest paid model backs it up
+    rather than letting the conversation die. The response reports
+    `fallback_used`, `model_used` and the cost, so none of it is hidden.
     """
     chain = [first]
     chain += [m for m in CATALOGUE if m.tier == "free" and m.model_id != first.model_id]
+    chain += [m for m in CATALOGUE if m.tier == "cheap" and m.model_id != first.model_id][:1]
     return chain
+
+
+class EmptyResponse(Exception):
+    """A 200 that carried no message. Worth trying another model."""
 
 
 def is_retryable(exc: Exception) -> bool:
@@ -89,6 +99,8 @@ def is_retryable(exc: Exception) -> bool:
     )
     if isinstance(status, int):
         return status == 408 or status == 409 or status == 429 or status >= 500
+    if isinstance(exc, EmptyResponse):
+        return True
     # No status at all usually means the connection never completed.
     return any(
         word in type(exc).__name__.lower()
