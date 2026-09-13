@@ -33,8 +33,6 @@ export default function Navbar() {
     const navLinks = [
         { name: 'Home', href: '/' },
         { name: 'Tutor', href: '/tutor' },
-        { name: 'Dashboard', href: '/dashboard' },
-        { name: 'About', href: '/about' },
     ];
 
     return (
@@ -109,8 +107,10 @@ export default function Navbar() {
                             </AnimatePresence>
                         </motion.button>
 
-                        {/* CTA Button - Desktop */}
-                        <Link href="/auth" className="hidden md:block">
+                        {/* CTA Button - Desktop. Points at the tutor: there is
+                            no account system, so "Get Started" means start a
+                            conversation. */}
+                        <Link href="/tutor" className="hidden md:block">
                             <motion.button
                                 whileHover={{ scale: 1.05 }}
                                 whileTap={{ scale: 0.95 }}
@@ -163,7 +163,7 @@ export default function Navbar() {
                                     </Link>
                                 </motion.div>
                             ))}
-                            <Link href="/auth" onClick={() => setIsMobileMenuOpen(false)}>
+                            <Link href="/tutor" onClick={() => setIsMobileMenuOpen(false)}>
                                 <motion.button
                                     initial={{ x: -20, opacity: 0 }}
                                     animate={{ x: 0, opacity: 1 }}

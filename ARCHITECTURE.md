@@ -307,9 +307,6 @@ class ChatRequest(BaseModel):
 ```
 GET  /                    → Landing page
 GET  /tutor               → AI chat interface
-GET  /dashboard           → User dashboard
-GET  /about               → About page
-GET  /auth                → Login/signup
 ```
 
 ### Backend Routes:

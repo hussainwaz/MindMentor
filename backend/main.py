@@ -19,9 +19,21 @@ API_KEY = os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY")
 app = FastAPI()
 
 # Enable CORS for frontend
+# Ports 3000 and 3001 were hardcoded, so a dev server on any other port had
+# every request blocked by CORS with no hint as to why. FRONTEND_URL adds one,
+# and localhost on any port is allowed by pattern during development.
+ALLOWED_ORIGINS = [
+    o for o in [
+        os.getenv("FRONTEND_URL"),
+        "http://localhost:3000",
+        "http://localhost:3001",
+    ] if o
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1):\d+",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -112,7 +124,7 @@ When answering:
 - Start with a brief overview
 - Explain core concepts in detail
 - Provide practical examples
-- Include visual descriptions where helpful (since you can't show images)
+- Describe diagrams in words. Never use image markdown: you cannot serve an image, and the link will be broken
 - Offer study tips or common pitfalls
 - End with a summary or key takeaways
 

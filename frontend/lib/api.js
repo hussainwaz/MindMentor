@@ -57,8 +57,8 @@ export async function sendChatMessage(message, history = [], model = 'GPT-4') {
 }
 
 /**
- * Get available AI models
- * @returns {Promise<Array>} - List of available models
+ * Get available AI models.
+ * @returns {Promise<{models: Array, default: string}>}
  */
 export async function getAvailableModels() {
     try {
@@ -69,16 +69,20 @@ export async function getAvailableModels() {
         }
 
         const data = await response.json();
-        return data.models;
+        // Order is the backend's, grouped by tier, and it stays that way: the
+        // picker draws a heading whenever the tier changes, so reordering to
+        // float the default would print the same heading twice.
+        return { models: data.models || [], default: data.default };
     } catch (error) {
         console.error('Models API error:', error);
         // Offline fallback. These have to be names the backend actually
         // knows, or every message fails once the API comes back.
-        return [
-            { name: 'DeepSeek', description: 'Reasoning model, free tier', provider: 'DeepSeek', tier: 'free' },
-            { name: 'LLaMA', description: 'Open weights, free tier', provider: 'Meta', tier: 'free' },
-            { name: 'Minimax', description: 'Balanced, free tier', provider: 'MiniMax', tier: 'free' }
-        ];
+        return {
+            models: [
+                { name: 'Mistral Nemo', description: 'Cheapest paid option, quick', provider: 'Mistral', tier: 'cheap' }
+            ],
+            default: 'Mistral Nemo'
+        };
     }
 }
 

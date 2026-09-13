@@ -1,45 +1,35 @@
-# 🎓 MindMentor - AI-Powered Learning Platform
+# MindMentor
 
-**MindMentor** is a modern, premium AI tutoring web application that helps students learn any topic with comprehensive, context-aware responses. Built with Next.js, FastAPI, and powered by multiple free AI models.
+An AI tutor that answers in full, remembers the conversation, lets you pick
+which of twelve models answers, and tells you what each answer cost.
 
-> **⚠️ Note:** This is a **UI/UX showcase project**. The `/tutor` AI chat is fully functional, but other pages (Dashboard, About, Auth) contain placeholder UI and dummy data for demonstration purposes. Feel free to customize them for your needs!
+Next.js on the front, FastAPI on the back, every model reached through
+OpenRouter with one key.
 
----
+![MindMentor](docs/screenshot.png)
 
-## 🌟 What is MindMentor?
+## What it does
 
-MindMentor is an intelligent tutoring platform that provides:
+- **Twelve models, one picker.** Free through frontier: NVIDIA Nemotron,
+  Mistral Nemo, Qwen3, Gemini Flash, GPT-4o mini, GPT-5 mini, GPT-5.1,
+  DeepSeek V3.1, Claude Haiku 4.5, Claude Sonnet 5. The catalogue lives in
+  `backend/models.py`, and the request is checked against it, so the endpoint
+  cannot be used to bill a model that is not on the list.
+- **The bill, per answer.** Every reply shows its cost, taken from
+  OpenRouter's own accounting rather than a price table, with reasoning
+  tokens broken out: those are charged at the completion rate and never
+  appear in what you read.
+- **Fallback that does not multiply the bill.** Rate limits and upstream
+  faults move to another model. A malformed request does not, because it
+  would fail identically everywhere and be charged every time. Fallbacks only
+  ever go to cheaper models.
+- **Conversation memory**, markdown rendering, and dark mode.
 
-- **Comprehensive AI Responses**: Get complete, detailed explanations without needing follow-up questions
-- **Conversation Memory**: AI remembers your entire conversation context for natural, flowing discussions
-- **Multi-Model Support**: Choose between DeepSeek, LLaMA, and Minimax (all free)
-- **Automatic Fallbacks**: If one model is unavailable, automatically switches to another
-- **Beautiful Markdown Rendering**: Responses formatted with headings, lists, code blocks, and more
-- **Premium UI/UX**: Glassmorphism effects, smooth animations, dark/light mode
+## Answers in full
 
----
-
-## ✨ What's Functional vs. Placeholder
-
-### ✅ Fully Functional:
-- **AI Tutor Chat** (`/tutor`) - Complete working chat with:
-  - Real AI responses from multiple models
-  - Conversation context memory
-  - Markdown rendering
-  - Model switching
-  - Auto-fallback on rate limits
-  - Error handling
-
-### 🎨 UI Template/Placeholder:
-- **Landing Page** (`/`) - Static showcase UI
-- **Dashboard** (`/dashboard`) - Dummy stats, charts, and progress bars
-- **About Page** (`/about`) - Static content about the platform
-- **Auth Page** (`/auth`) - Login/signup UI only (no backend authentication)
-- **Session History** (in sidebar) - Dummy data for visual reference
-- **User Profile** - Not implemented
-- **Bookmarks, Likes, Actions** - UI buttons without functionality
-
-**👉 These pages are designed as templates** for you to extend with your own backend logic, database, and features!
+The system prompt asks for a complete answer the first time: an overview,
+the core concepts, worked examples, common pitfalls, and a summary. The model
+is told the reader may not get to ask a follow-up.
 
 ---
 
@@ -202,7 +192,7 @@ Want to make this your own? Here's what you can extend:
 1. **System Prompt** - Edit `backend/main.py` to change AI personality
 2. **Colors/Theme** - Modify `frontend/app/globals.css` gradient values
 3. **Models** - Add more free models in `backend/main.py` model_map
-4. **Landing Page** - Update hero text, features, testimonials in `app/page.js`
+4. **Landing Page** - Update hero text and features in `app/page.js`
 
 ### Advanced Extensions:
 1. **Add Database** - PostgreSQL/MongoDB for user accounts & chat history
@@ -231,13 +221,15 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 
 ---
 
-## 📱 Pages
+## Pages
 
-1. **Landing Page** (`/`) - Hero, features, testimonials
-2. **AI Tutor** (`/tutor`) - Main chat interface
-3. **Dashboard** (`/dashboard`) - User stats and progress
-4. **About** (`/about`) - Mission, tech stack, team
-5. **Auth** (`/auth`) - Login/signup (UI only)
+1. **Landing** (`/`) - what it is and what it costs
+2. **Tutor** (`/tutor`) - the chat, the model picker, the running cost
+
+There used to be a dashboard, an about page and a sign-in page. All three
+were mockups with invented data, as were the testimonials and the usage
+figures on the landing page, so they have been removed rather than left
+to look like features.
 
 ---
 

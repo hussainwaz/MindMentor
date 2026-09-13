@@ -246,9 +246,6 @@ netstat -ano | findstr :3000
 ### Frontend URLs:
 - **Landing:** http://localhost:3000
 - **AI Tutor:** http://localhost:3000/tutor
-- **Dashboard:** http://localhost:3000/dashboard
-- **About:** http://localhost:3000/about
-- **Auth:** http://localhost:3000/auth
 
 ### Backend URLs:
 - **Health:** http://localhost:8000/health
@@ -363,9 +360,6 @@ npm run dev
 ### Main App:
 - **Landing Page:** http://localhost:3000
 - **AI Tutor:** http://localhost:3000/tutor
-- **Dashboard:** http://localhost:3000/dashboard
-- **About:** http://localhost:3000/about
-- **Auth:** http://localhost:3000/auth
 
 ### Backend API:
 - **Health Check:** http://localhost:8000/health

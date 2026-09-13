@@ -6,17 +6,12 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
     Send,
-    Mic,
     Sparkles,
     Brain,
     History,
-    Settings,
     Bookmark,
-    MoreVertical,
     ChevronLeft,
     Copy,
-    ThumbsUp,
-    ThumbsDown,
     RefreshCw,
     User,
     Bot,
@@ -76,6 +71,15 @@ const MessageBubble = ({ message }) => {
                                     blockquote: ({ node, ...props }) => <blockquote className="border-l-4 border-indigo-500 pl-3 italic text-gray-700 dark:text-gray-300 my-2" {...props} />,
                                     a: ({ node, ...props }) => <a className="text-indigo-600 dark:text-indigo-400 hover:underline" target="_blank" rel="noopener noreferrer" {...props} />,
                                     hr: ({ node, ...props }) => <hr className="border-gray-300 dark:border-gray-700 my-3" {...props} />,
+                                    // Models keep emitting image markdown that
+                                    // points at URLs they invented, which used
+                                    // to render as a broken-image box. Show the
+                                    // alt text as a caption instead.
+                                    img: ({ node, alt, ...props }) => (
+                                        <span className="block my-2 px-3 py-2 rounded-lg border border-dashed border-gray-300 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400">
+                                            {alt || 'Figure described in text'}
+                                        </span>
+                                    ),
                                     table: ({ node, ...props }) => <table className="min-w-full border-collapse text-sm mb-2" {...props} />,
                                     th: ({ node, ...props }) => <th className="border border-gray-300 dark:border-gray-700 px-2 py-1 bg-gray-100 dark:bg-gray-800 font-semibold" {...props} />,
                                     td: ({ node, ...props }) => <td className="border border-gray-300 dark:border-gray-700 px-2 py-1" {...props} />
@@ -107,20 +111,14 @@ const MessageBubble = ({ message }) => {
                     </div>
                 )}
 
-                {/* Message Actions (only for AI messages) */}
                 {isAI && (
                     <div className="flex items-center gap-2 mt-2 ml-1">
-                        <button className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title="Copy">
+                        <button
+                            onClick={() => navigator.clipboard?.writeText(message.content)}
+                            className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                            title="Copy"
+                        >
                             <Copy className="w-4 h-4 text-gray-500" />
-                        </button>
-                        <button className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title="Like">
-                            <ThumbsUp className="w-4 h-4 text-gray-500" />
-                        </button>
-                        <button className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title="Dislike">
-                            <ThumbsDown className="w-4 h-4 text-gray-500" />
-                        </button>
-                        <button className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title="Regenerate">
-                            <RefreshCw className="w-4 h-4 text-gray-500" />
                         </button>
                     </div>
                 )}
@@ -151,11 +149,12 @@ export default function TutorPage() {
     ]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const [selectedModel, setSelectedModel] = useState('DeepSeek');
+    const [selectedModel, setSelectedModel] = useState('');
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [apiStatus, setApiStatus] = useState(null);
     const [error, setError] = useState(null);
     const [aiModels, setAiModels] = useState([]);
+    const sessionCost = messages.reduce((sum, m) => sum + (m.usage?.cost || 0), 0);
     const messagesEndRef = useRef(null);
 
     // Check API health on mount
@@ -168,7 +167,13 @@ export default function TutorPage() {
     // The catalogue lives on the backend, which also owns the allowlist, so
     // the picker can never name a model the key is not meant to be billed for.
     useEffect(() => {
-        getAvailableModels().then(setAiModels);
+        getAvailableModels().then(({ models, default: fallbackName }) => {
+            setAiModels(models);
+            // Start on whatever the backend calls default rather than a name
+            // hardcoded here, which is how the header ended up advertising a
+            // model that had been withdrawn.
+            setSelectedModel((current) => current || fallbackName || models[0]?.name || '');
+        });
     }, []);
 
     const scrollToBottom = () => {
@@ -186,13 +191,6 @@ export default function TutorPage() {
         { icon: '📖', text: 'Analyze Shakespeare', category: 'Literature' },
         { icon: '🌍', text: 'World War II history', category: 'History' },
         { icon: '🎨', text: 'Art history basics', category: 'Arts' }
-    ];
-
-    const sessionHistory = [
-        { id: 1, title: 'Quantum Mechanics Basics', date: 'Today' },
-        { id: 2, title: 'React Component Design', date: 'Yesterday' },
-        { id: 3, title: 'Calculus Integration', date: '2 days ago' },
-        { id: 4, title: 'Spanish Grammar', date: '3 days ago' }
     ];
 
     const handleSend = async () => {
@@ -338,43 +336,40 @@ export default function TutorPage() {
                                 </div>
                             </div>
 
-                            {/* Session History */}
+                            {/* This session. Nothing is stored between
+                                reloads, so the panel says that rather than
+                                listing conversations that never happened. */}
                             <div className="flex-1 overflow-y-auto p-4">
                                 <div className="flex items-center justify-between mb-3">
                                     <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400">
-                                        RECENT SESSIONS
+                                        THIS SESSION
                                     </h3>
                                     <History className="w-4 h-4 text-gray-400" />
                                 </div>
-                                <div className="space-y-2">
-                                    {sessionHistory.map((session) => (
-                                        <button
-                                            key={session.id}
-                                            className="w-full p-3 rounded-xl glass hover:glass-strong transition-all text-left group"
-                                        >
-                                            <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-1 truncate">
-                                                {session.title}
-                                            </p>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                                                {session.date}
-                                            </p>
-                                        </button>
-                                    ))}
+                                <div className="p-3 rounded-xl glass text-sm">
+                                    <p className="font-medium text-gray-800 dark:text-gray-200">
+                                        {Math.max(0, messages.length - 1)} message{messages.length === 2 ? '' : 's'}
+                                    </p>
+                                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                        {sessionCost > 0
+                                            ? `${formatCost(sessionCost)} so far`
+                                            : 'History is kept in memory only, and clears on reload.'}
+                                    </p>
                                 </div>
                             </div>
 
                             {/* Sidebar Footer */}
-                            <div className="p-4 border-t border-gray-200 dark:border-gray-800 space-y-2">
-                                <Link href="/dashboard">
+                            <div className="p-4 border-t border-gray-200 dark:border-gray-800">
+                                <a
+                                    href="https://github.com/hussainwaz/MindMentor"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
                                     <button className="w-full px-4 py-3 rounded-xl glass hover:glass-strong transition-all flex items-center space-x-3 text-sm font-medium">
                                         <Bookmark className="w-4 h-4" />
-                                        <span>Dashboard</span>
+                                        <span>View source</span>
                                     </button>
-                                </Link>
-                                <button className="w-full px-4 py-3 rounded-xl glass hover:glass-strong transition-all flex items-center space-x-3 text-sm font-medium">
-                                    <Settings className="w-4 h-4" />
-                                    <span>Settings</span>
-                                </button>
+                                </a>
                             </div>
                         </motion.aside>
                     </>
@@ -439,11 +434,14 @@ export default function TutorPage() {
                             </div>
                         </div>
                         <div className="flex items-center space-x-2">
-                            <button className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                                <Bookmark className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-                            </button>
-                            <button className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                                <MoreVertical className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                            <button
+                                onClick={() => setMessages((m) => m.slice(0, 1))}
+                                disabled={messages.length < 2}
+                                title="Clear this conversation"
+                                className="px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+                            >
+                                <RefreshCw className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                                <span className="hidden sm:inline text-gray-600 dark:text-gray-400">Clear</span>
                             </button>
                         </div>
                     </div>
@@ -528,12 +526,9 @@ export default function TutorPage() {
                                     }}
                                     placeholder="Ask me anything... (Shift + Enter for new line)"
                                     rows={1}
-                                    className="w-full px-4 py-3 pr-12 rounded-xl glass-strong resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                                    className="w-full px-4 py-3 rounded-xl glass-strong resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
                                     style={{ minHeight: '48px', maxHeight: '120px' }}
                                 />
-                                <button className="absolute right-3 bottom-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                                    <Mic className="w-4 h-4 text-gray-500" />
-                                </button>
                             </div>
                             <motion.button
                                 whileHover={{ scale: 1.05 }}

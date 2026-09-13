@@ -1,44 +1,28 @@
 'use client';
 
 import Link from 'next/link';
-import { Brain, Twitter, Github, Linkedin, Mail, Heart } from 'lucide-react';
+import { Brain, Github, Linkedin, Heart } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export default function Footer() {
     const currentYear = new Date().getFullYear();
 
+    // Only destinations that exist. Sixteen links used to sit here, of which
+    // fourteen were 404s: a blog, careers, a status page, four legal pages.
     const footerLinks = {
         Product: [
             { name: 'Features', href: '/#features' },
             { name: 'AI Tutor', href: '/tutor' },
-            { name: 'Dashboard', href: '/dashboard' },
-            { name: 'Pricing', href: '/#pricing' },
         ],
-        Company: [
-            { name: 'About', href: '/about' },
-            { name: 'Blog', href: '/blog' },
-            { name: 'Careers', href: '/careers' },
-            { name: 'Contact', href: '/contact' },
-        ],
-        Resources: [
-            { name: 'Documentation', href: '/docs' },
-            { name: 'Help Center', href: '/help' },
-            { name: 'Community', href: '/community' },
-            { name: 'Status', href: '/status' },
-        ],
-        Legal: [
-            { name: 'Privacy', href: '/privacy' },
-            { name: 'Terms', href: '/terms' },
-            { name: 'Security', href: '/security' },
-            { name: 'Cookies', href: '/cookies' },
+        Project: [
+            { name: 'Source', href: 'https://github.com/hussainwaz/MindMentor' },
+            { name: 'Models', href: 'https://openrouter.ai/models' },
         ],
     };
 
     const socialLinks = [
-        { icon: Twitter, href: 'https://twitter.com', label: 'Twitter' },
-        { icon: Github, href: 'https://github.com', label: 'GitHub' },
-        { icon: Linkedin, href: 'https://linkedin.com', label: 'LinkedIn' },
-        { icon: Mail, href: 'mailto:hello@mindmentor.ai', label: 'Email' },
+        { icon: Github, href: 'https://github.com/hussainwaz', label: 'GitHub' },
+        { icon: Linkedin, href: 'https://linkedin.com/in/hussainawaz', label: 'LinkedIn' },
     ];
 
     return (
@@ -48,7 +32,7 @@ export default function Footer() {
 
             <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
                 {/* Top Section */}
-                <div className="grid grid-cols-2 md:grid-cols-6 gap-8 mb-12">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
                     {/* Brand */}
                     <div className="col-span-2">
                         <Link href="/" className="flex items-center space-x-2 group mb-4">
@@ -142,7 +126,15 @@ export default function Footer() {
                             © {currentYear} MindMentor. All rights reserved.
                         </p>
                         <p className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                            Made with <Heart className="w-4 h-4 mx-1 text-red-500 fill-current" /> by the MindMentor Team
+                            Built with <Heart className="w-4 h-4 mx-1 text-red-500 fill-current" /> by{' '}
+                            <a
+                                href="https://hussainnawaz.vercel.app"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="ml-1 font-medium hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                            >
+                                Hussain Nawaz
+                            </a>
                         </p>
                     </div>
                 </div>
