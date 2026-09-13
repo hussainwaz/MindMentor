@@ -42,7 +42,10 @@ export async function sendChatMessage(message, history = [], model = 'GPT-4') {
             response: data.response,
             model: data.model_used,
             tokens: data.tokens_used,
-            fallback_used: data.fallback_used || false
+            fallback_used: data.fallback_used || false,
+            // What OpenRouter actually charged, not an estimate from a price
+            // table: it rides along on every response.
+            usage: data.usage || null
         };
     } catch (error) {
         console.error('Chat API error:', error);
@@ -69,11 +72,12 @@ export async function getAvailableModels() {
         return data.models;
     } catch (error) {
         console.error('Models API error:', error);
+        // Offline fallback. These have to be names the backend actually
+        // knows, or every message fails once the API comes back.
         return [
-            { name: 'GPT-4', description: 'Most capable, best for complex topics', provider: 'OpenAI' },
-            { name: 'DeepSeek', description: 'Fast and efficient responses', provider: 'DeepSeek' },
-            { name: 'Claude', description: 'Detailed explanations and analysis', provider: 'Anthropic' },
-            { name: 'LLaMA', description: 'Open-source, privacy-focused', provider: 'Meta' }
+            { name: 'DeepSeek', description: 'Reasoning model, free tier', provider: 'DeepSeek', tier: 'free' },
+            { name: 'LLaMA', description: 'Open weights, free tier', provider: 'Meta', tier: 'free' },
+            { name: 'Minimax', description: 'Balanced, free tier', provider: 'MiniMax', tier: 'free' }
         ];
     }
 }

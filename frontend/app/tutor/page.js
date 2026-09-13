@@ -25,7 +25,7 @@ import {
     AlertCircle
 } from 'lucide-react';
 import Link from 'next/link';
-import { sendChatMessage, checkAPIHealth } from '@/lib/api';
+import { sendChatMessage, checkAPIHealth, getAvailableModels } from '@/lib/api';
 
 // MessageBubble component moved outside to prevent re-creation on every render
 const MessageBubble = ({ message }) => {
@@ -91,6 +91,22 @@ const MessageBubble = ({ message }) => {
                     )}
                 </div>
 
+                {/* What this answer cost, and which model produced it. */}
+                {isAI && message.model && (
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5 ml-1 text-[11px] text-gray-400 dark:text-gray-500">
+                        <span className="font-medium text-gray-500 dark:text-gray-400">{message.model}</span>
+                        {message.tokens != null && <span>{message.tokens} tokens</span>}
+                        {message.usage?.reasoning_tokens ? (
+                            <span title="Billed at the completion rate, but never shown in the answer">
+                                {message.usage.reasoning_tokens} reasoning
+                            </span>
+                        ) : null}
+                        {formatCost(message.usage?.cost) && (
+                            <span className="font-mono">{formatCost(message.usage.cost)}</span>
+                        )}
+                    </div>
+                )}
+
                 {/* Message Actions (only for AI messages) */}
                 {isAI && (
                     <div className="flex items-center gap-2 mt-2 ml-1">
@@ -113,6 +129,17 @@ const MessageBubble = ({ message }) => {
     );
 };
 
+const TIER_LABEL = { free: 'Free', cheap: 'Cheap', mid: 'Mid', strong: 'Strong' };
+const TIER_ICON = { free: '\u{1F193}', cheap: '\u{1F4B8}', mid: '\u2696\uFE0F', strong: '\u{1F9E0}' };
+
+/** OpenRouter bills fractions of a cent, so two decimal places reads $0.00
+ *  for every message. Show enough digits that the number means something. */
+function formatCost(cost) {
+    if (cost == null) return null;
+    if (cost === 0) return 'free';
+    return cost < 0.01 ? `$${cost.toFixed(5)}` : `$${cost.toFixed(3)}`;
+}
+
 export default function TutorPage() {
     const [messages, setMessages] = useState([
         {
@@ -128,6 +155,7 @@ export default function TutorPage() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [apiStatus, setApiStatus] = useState(null);
     const [error, setError] = useState(null);
+    const [aiModels, setAiModels] = useState([]);
     const messagesEndRef = useRef(null);
 
     // Check API health on mount
@@ -137,6 +165,12 @@ export default function TutorPage() {
         });
     }, []);
 
+    // The catalogue lives on the backend, which also owns the allowlist, so
+    // the picker can never name a model the key is not meant to be billed for.
+    useEffect(() => {
+        getAvailableModels().then(setAiModels);
+    }, []);
+
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
@@ -144,12 +178,6 @@ export default function TutorPage() {
     useEffect(() => {
         scrollToBottom();
     }, [messages]);
-
-    const aiModels = [
-        { name: 'DeepSeek', description: 'Fast and efficient responses', icon: '⚡' },
-        { name: 'LLaMA', description: 'Open-source, privacy-focused', icon: '�' },
-        { name: 'Minimax', description: 'Balanced performance and speed', icon: '⚖️' }
-    ];
 
     const suggestedPrompts = [
         { icon: '🔬', text: 'Explain quantum physics', category: 'Science' },
@@ -201,7 +229,8 @@ export default function TutorPage() {
                     content: result.response,
                     timestamp: new Date(),
                     model: result.model,
-                    tokens: result.tokens
+                    tokens: result.tokens,
+                    usage: result.usage
                 };
                 setMessages(prev => [...prev, aiMessage]);
 
@@ -273,16 +302,23 @@ export default function TutorPage() {
                                     AI MODEL
                                 </label>
                                 <div className="space-y-2">
-                                    {aiModels.map((model) => (
+                                    {aiModels.map((model, i) => (
+                                        <div key={model.name}>
+                                        {model.tier !== aiModels[i - 1]?.tier && (
+                                            <p className="px-1 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500">
+                                                {TIER_LABEL[model.tier] || model.tier}
+                                            </p>
+                                        )}
                                         <button
-                                            key={model.name}
                                             onClick={() => setSelectedModel(model.name)}
                                             className={`w-full px-4 py-3 rounded-xl transition-all flex items-center gap-3 text-left ${selectedModel === model.name
                                                     ? 'bg-gradient-to-r from-indigo-600 to-cyan-600 text-white shadow-lg'
                                                     : 'glass hover:glass-strong'
                                                 }`}
                                         >
-                                            <span className="text-2xl">{model.icon}</span>
+                                            <span className={`text-lg ${selectedModel === model.name ? '' : 'opacity-70'}`}>
+                                                {TIER_ICON[model.tier] || '✨'}
+                                            </span>
                                             <div className="flex-1 min-w-0">
                                                 <p className={`text-sm font-semibold ${selectedModel === model.name ? 'text-white' : 'text-gray-900 dark:text-white'
                                                     }`}>
@@ -297,6 +333,7 @@ export default function TutorPage() {
                                                 <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
                                             )}
                                         </button>
+                                        </div>
                                     ))}
                                 </div>
                             </div>

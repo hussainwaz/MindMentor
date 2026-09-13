@@ -3,11 +3,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from openai import OpenAI
 from dotenv import load_dotenv
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 import os
+
+import models as catalogue
 
 load_dotenv()
 
+# Named for the OpenAI SDK that reads it, but this is an OpenRouter key:
+# the client below points at OpenRouter's base URL.
 API_KEY = os.getenv("OPENAI_API_KEY")
 
 app = FastAPI()
@@ -25,6 +29,40 @@ client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
     api_key=API_KEY,
 )
+
+EXTRA_HEADERS = {
+    "HTTP-Referer": "https://mindmentor.ai",
+    "X-Title": "MindMentor",
+}
+
+
+def _usage(completion: Any, model: "catalogue.Model") -> Dict[str, Any]:
+    """What the call cost, as OpenRouter reported it.
+
+    OpenRouter returns `cost` in USD on every response without being asked,
+    so this is the charge rather than an estimate. `reasoning_tokens` is the
+    part billed at the completion rate that never reaches the reader, which
+    is the one line that explains a surprising bill on a reasoning model.
+    """
+    raw = getattr(completion, "usage", None)
+    if raw is None:
+        return {"model": model.model_id}
+    details = getattr(raw, "completion_tokens_details", None)
+    reasoning = None
+    if details is not None:
+        reasoning = (
+            details.get("reasoning_tokens")
+            if isinstance(details, dict)
+            else getattr(details, "reasoning_tokens", None)
+        )
+    return {
+        "model": model.model_id,
+        "prompt_tokens": getattr(raw, "prompt_tokens", None),
+        "completion_tokens": getattr(raw, "completion_tokens", None),
+        "reasoning_tokens": reasoning,
+        "total_tokens": getattr(raw, "total_tokens", None),
+        "cost": getattr(raw, "cost", None),
+    }
 
 class Message(BaseModel):
     role: str  # 'user' or 'assistant'
@@ -76,56 +114,40 @@ def chat(request: ChatRequest):
     # Add current user message
     messages.append({"role": "user", "content": request.message})
     
-    # Map model names to OpenRouter format (FREE MODELS ONLY)
-    model_map = {
-        "DeepSeek": "deepseek/deepseek-r1:free",
-        "LLaMA": "meta-llama/llama-3.3-70b-instruct:free",
-        "Minimax": "minimax/minimax-m2:free"
-    }
-    
-    # Fallback order: try requested model first, then others
-    models_to_try = [model_map.get(request.model, "deepseek/deepseek-r1:free")]
-    for model in model_map.values():
-        if model not in models_to_try:
-            models_to_try.append(model)
-    
+    requested = catalogue.resolve(request.model)
+    chain = catalogue.fallback_chain(requested)
+
     last_error = None
-    
-    for model in models_to_try:
+
+    for model in chain:
         try:
             completion = client.chat.completions.create(
-                extra_headers={
-                    "HTTP-Referer": "https://mindmentor.ai",
-                    "X-Title": "MindMentor",
-                },
-                model=model,
+                extra_headers=EXTRA_HEADERS,
+                model=model.model_id,
                 messages=messages,
-                temperature=0.7,
-                max_tokens=1000,
+                temperature=catalogue.TEMPERATURE,
+                max_tokens=catalogue.MAX_TOKENS,
             )
-            
-            response_content = completion.choices[0].message.content
-            
-            # Find the friendly name for the model that worked
-            used_model_name = request.model
-            for name, model_id in model_map.items():
-                if model_id == model:
-                    used_model_name = name
-                    break
-            
+
+            usage = _usage(completion, model)
             return {
-                "model_used": used_model_name,
-                "response": response_content,
+                "model_used": model.name,
+                "response": completion.choices[0].message.content,
                 "status": "success",
-                "tokens_used": completion.usage.total_tokens if hasattr(completion, 'usage') else None,
-                "fallback_used": model != models_to_try[0]
+                "tokens_used": usage.get("total_tokens"),
+                "fallback_used": model.model_id != requested.model_id,
+                "usage": usage,
             }
-            
+
         except Exception as e:
             last_error = str(e)
-            # If rate limited or error, try next model
+            # Only a rate limit or an upstream fault is worth another model.
+            # A malformed request fails identically on every one of them, and
+            # on paid models each retry is another charge.
+            if not catalogue.is_retryable(e):
+                raise HTTPException(status_code=502, detail=f"{model.name}: {e}") from e
             continue
-    
+
     # All models failed
     raise HTTPException(
         status_code=503, 
@@ -144,18 +166,19 @@ def generate(request: PromptRequest):
             {"role": "user", "content": request.prompt}
         ]
         
+        model = catalogue.resolve(request.model)
         completion = client.chat.completions.create(
-            extra_headers={
-                "HTTP-Referer": "https://mindmentor.ai",
-                "X-Title": "MindMentor",
-            },
-            model=request.model,
+            extra_headers=EXTRA_HEADERS,
+            model=model.model_id,
             messages=messages,
+            temperature=catalogue.TEMPERATURE,
+            max_tokens=catalogue.MAX_TOKENS,
         )
         return {
-            "model_used": request.model,
+            "model_used": model.name,
             "response": completion.choices[0].message.content,
             "status": "success",
+            "usage": _usage(completion, model),
         }
 
     except Exception as e:
@@ -172,25 +195,16 @@ def health_check():
 
 @app.get("/models")
 def get_models():
-    """
-    Get available AI models (FREE ONLY)
-    """
+    """The models the UI may offer, free ones first."""
     return {
         "models": [
             {
-                "name": "DeepSeek",
-                "description": "Fast and efficient responses",
-                "provider": "DeepSeek"
-            },
-            {
-                "name": "LLaMA",
-                "description": "Open-source, privacy-focused",
-                "provider": "Meta"
-            },
-            {
-                "name": "Minimax",
-                "description": "Balanced performance and speed",
-                "provider": "Minimax"
+                "name": m.name,
+                "description": m.description,
+                "provider": m.provider,
+                "tier": m.tier,
             }
-        ]
+            for m in catalogue.CATALOGUE
+        ],
+        "default": catalogue.DEFAULT_NAME,
     }
