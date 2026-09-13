@@ -36,12 +36,12 @@ pip install fastapi uvicorn openai python-dotenv
 
 # Create .env file
 # Use any text editor or:
-echo OPENAI_API_KEY=your_key_here > .env
+echo OPENROUTER_API_KEY=your_key_here > .env
 ```
 
 **Backend `.env` file:**
 ```env
-OPENAI_API_KEY=your_openrouter_api_key_here
+OPENROUTER_API_KEY=your_openrouter_api_key_here
 ```
 
 ### 3. Frontend Setup
@@ -167,7 +167,7 @@ npm run dev
 
 **Solution:**
 1. Check `backend/.env` file exists
-2. Verify it contains: `OPENAI_API_KEY=your_key`
+2. Verify it contains: `OPENROUTER_API_KEY=your_key`
 3. Get new key at https://openrouter.ai/keys
 4. Restart backend server
 
@@ -331,7 +331,7 @@ Test-Path .env
 
 # Check API key is set
 Get-Content .env
-# Should show: OPENAI_API_KEY=sk-or-...
+# Should show: OPENROUTER_API_KEY=sk-or-...
 ```
 
 ### Frontend Port Conflict?
@@ -396,7 +396,7 @@ npm run dev
 
 The `.env` file should contain:
 ```env
-OPENAI_API_KEY=your_actual_key_here
+OPENROUTER_API_KEY=your_actual_key_here
 ```
 
 Keep this file private and local only.

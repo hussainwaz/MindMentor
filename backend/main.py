@@ -10,9 +10,10 @@ import models as catalogue
 
 load_dotenv()
 
-# Named for the OpenAI SDK that reads it, but this is an OpenRouter key:
-# the client below points at OpenRouter's base URL.
-API_KEY = os.getenv("OPENAI_API_KEY")
+# This is an OpenRouter key, so OPENROUTER_API_KEY is the honest name and the
+# one to prefer. OPENAI_API_KEY is still read second, because that is what
+# earlier .env files here used and breaking them would be rude.
+API_KEY = os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY")
 
 app = FastAPI()
 
