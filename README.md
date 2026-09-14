@@ -10,265 +10,114 @@ OpenRouter with one key.
 
 ## What it does
 
-- **Twelve models, one picker.** Free through frontier: NVIDIA Nemotron,
-  Mistral Nemo, Qwen3, Gemini Flash, GPT-4o mini, GPT-5 mini, GPT-5.1,
-  DeepSeek V3.1, Claude Haiku 4.5, Claude Sonnet 5. The catalogue lives in
-  `backend/models.py`, and the request is checked against it, so the endpoint
-  cannot be used to bill a model that is not on the list.
-- **The bill, per answer.** Every reply shows its cost, taken from
-  OpenRouter's own accounting rather than a price table, with reasoning
-  tokens broken out: those are charged at the completion rate and never
-  appear in what you read.
-- **Fallback that does not multiply the bill.** Rate limits and upstream
-  faults move to another model. A malformed request does not, because it
-  would fail identically everywhere and be charged every time. Fallbacks only
-  ever go to cheaper models.
-- **Conversation memory**, markdown rendering, and dark mode.
+- **Twelve models, one picker.** Free through frontier, grouped by price:
+  NVIDIA Nemotron, Mistral Nemo, Qwen3, Gemini Flash Lite, GPT-4o mini,
+  DeepSeek V3.1, Gemini Flash, GPT-5 mini, Claude Haiku 4.5, Claude Sonnet 5,
+  GPT-5.1. The catalogue lives in `backend/models.py`, and a request is checked
+  against it, so the endpoint cannot be talked into billing a model that is not
+  on the list.
+- **The bill, per answer.** Every reply shows the model, the tokens and the
+  cost, taken from OpenRouter's own accounting rather than a price table.
+  Reasoning tokens are broken out separately: they are charged at the
+  completion rate and never appear in what you read. One model spent 4,220 of
+  them on a single answer.
+- **Fallback that does not multiply the bill.** Rate limits and upstream faults
+  move to another model. A malformed request does not, because it would fail
+  identically everywhere and be charged every time. Fallbacks only ever go to
+  cheaper models: picking Sonnet is not consent to also be billed for GPT-5.1.
+- **Answers meant to be complete.** The system prompt asks for an overview, the
+  core concepts, worked examples, common pitfalls and a summary, on the
+  assumption the reader may not get to ask a follow-up.
+- Full conversation memory, markdown rendering, light and dark.
 
-## Answers in full
+## There is no hosted demo, deliberately
 
-The system prompt asks for a complete answer the first time: an overview,
-the core concepts, worked examples, common pitfalls, and a summary. The model
-is told the reader may not get to ask a follow-up.
+Every message is a paid model call. A public instance would be billing my key
+for anyone who found the URL, so this runs on your own key or not at all.
+Screenshots are above, and the walkthrough is on
+[my portfolio](https://hussainnawaz.vercel.app/projects/mindmentor-ai-tutor).
 
----
+## Running it
 
-## 🎯 Key Features
+You need an [OpenRouter](https://openrouter.ai/keys) key with a little credit.
+The default model is Mistral Nemo at roughly $0.00002 a turn, so a thousand
+messages costs about two cents. Two free models are in the picker as a
+courtesy, but they are not the default: OpenRouter withdrew the three `:free`
+slugs this project originally ran on, and free slugs rate limit under load.
 
-### For Students:
-- 📚 **Learn Any Topic**: From quantum physics to React hooks
-- 💬 **Natural Conversations**: AI maintains context throughout your session
-- 🎨 **Visual Learning**: Markdown-formatted responses with structured information
-- ⚡ **Fast Responses**: Free AI models with automatic fallback
-- 📱 **Responsive Design**: Works on desktop, tablet, and mobile
-
-### For Developers:
-- 🚀 **Modern Stack**: Next.js 16 + FastAPI + OpenRouter
-- 🎨 **TailwindCSS 4**: Utility-first styling with custom animations
-- 🔄 **Real-time Updates**: Conversation context managed efficiently
-- 🛡️ **Error Handling**: Graceful fallbacks and user-friendly notifications
-- 📖 **Clean Code**: Well-structured, documented, maintainable
-
----
-
-## 📁 Project Structure
-
-```
-MindMentor/
-├── frontend/          # Next.js application (React 19)
-│   ├── app/           # Pages and routes
-│   ├── components/    # Reusable components
-│   └── lib/           # API client and utilities
-├── backend/           # FastAPI server (Python)
-│   └── main.py        # API endpoints
-└── docs/              # Documentation
-    ├── ARCHITECTURE.md   # System architecture & design
-    └── SETUP.md          # Installation & usage guide
-```
-
----
-
-## 🚀 Quick Start
-
-### Prerequisites
-- **Node.js** 18+ 
-- **Python** 3.8+
-- **OpenRouter API Key** (free - get at https://openrouter.ai/keys)
-
-### Installation
-
-1. **Clone the repository**
 ```bash
-git clone <your-repo-url>
-cd MindMentor
+cp backend/.env.example backend/.env   # then paste your key into it
 ```
 
-2. **Setup Backend**
 ```bash
-cd backend
-pip install fastapi uvicorn openai python-dotenv
+cd backend && python3 -m venv .venv && ./.venv/bin/pip install -r requirements.txt && ./.venv/bin/uvicorn main:app --reload --port 8000
 ```
 
-Create `.env` file in `backend/`:
-```env
-OPENAI_API_KEY=your_openrouter_api_key_here
-```
-
-3. **Setup Frontend**
 ```bash
-cd frontend
-npm install
+cd frontend && npm install && npm run dev
 ```
 
-4. **Run Both Servers**
+The UI is on `http://localhost:3000`, the API on `:8000`, and Swagger at
+`http://127.0.0.1:8000/docs`.
 
-Terminal 1 (Backend):
-```bash
-cd backend
-python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
+## API
+
+| Route | Method | Body | Returns |
+|---|---|---|---|
+| `/health` | GET | | `{ status, service }` |
+| `/models` | GET | | `{ models, default }` |
+| `/chat` | POST | `{ message, model, history }` | answer, model used, tokens, cost |
+| `/generate` | POST | `{ prompt, model }` | single-turn, no history |
+
+`model` is a friendly name from `/models` (`"Claude Sonnet 5"`), not an
+OpenRouter id. `usage` carries the real charge:
+
+```json
+{ "model": "mistralai/mistral-nemo", "prompt_tokens": 220, "completion_tokens": 404,
+  "reasoning_tokens": 0, "total_tokens": 624, "cost": 0.00002 }
 ```
 
-Terminal 2 (Frontend):
-```bash
-cd frontend
-npm run dev
+`fallback_used` is true when the requested model could not answer and another
+one did; `model_used` says which.
+
+## Configuration
+
+Everything lives in `backend/.env`; see `backend/.env.example`.
+
+| Variable | Default | |
+|---|---|---|
+| `OPENROUTER_API_KEY` | — | required; `OPENAI_API_KEY` still works |
+| `DEFAULT_MODEL_NAME` | `Mistral Nemo` | the model the picker opens on |
+| `MAX_TOKENS` | `4000` | reasoning models spend part of this thinking |
+| `TEMPERATURE` | `0.7` | |
+| `FRONTEND_URL` | — | adds an allowed CORS origin |
+
+The frontend reads `NEXT_PUBLIC_API_URL`, defaulting to `http://localhost:8000`.
+
+## Layout
+
 ```
-
-5. **Open App**: http://localhost:3000/tutor
-
----
-
-## 📚 Documentation
-
-For detailed information, see:
-
-1. **[ARCHITECTURE.md](./ARCHITECTURE.md)** - System design, data flow, component structure
-2. **[SETUP.md](./SETUP.md)** - Detailed setup, configuration, troubleshooting
-
----
-
-## 🎨 Tech Stack
-
-### Frontend
-- **Next.js 16** - React framework with App Router
-- **React 19** - Latest React with concurrent features
-- **TailwindCSS 4** - Utility-first CSS with custom animations
-- **Framer Motion** - Smooth animations and transitions
-- **React Markdown** - Beautiful markdown rendering
-- **Lucide React** - Modern icon system
-
-### Backend
-- **FastAPI** - Modern Python web framework
-- **OpenRouter** - Multi-model AI API gateway
-- **Pydantic** - Data validation
-- **Uvicorn** - ASGI server
-
-### AI Models (Free)
-- **DeepSeek R1** - Fast and efficient
-- **LLaMA 3.3 70B** - Open-source, privacy-focused
-- **Minimax M2** - Balanced performance
-
----
-
-## 🌐 Features in Detail
-
-### 1. Conversation Context Management
-- Full message history sent with each request
-- AI understands context from previous messages
-- No need to repeat information
-
-### 2. Smart Model Fallback
-- If primary model fails → automatically tries next model
-- User notified with toast notification
-- Seamless experience without interruption
-
-### 3. Markdown Rendering
-- **Headings** (H1-H4) with proper styling
-- **Lists** (ordered and unordered)
-- **Code blocks** with syntax highlighting
-- **Tables**, **blockquotes**, **links**
-- **Bold**, *italic*, and `inline code`
-
-### 4. Error Handling
-- Fixed position toast notifications
-- No layout shift when errors appear
-- Auto-dismiss after 5 seconds
-- User-friendly error messages
-
-### 5. Premium UI/UX
-- Glassmorphism effects with backdrop blur
-- Smooth gradient animations
-- Custom model selector (card-based, no ugly dropdowns)
-- Dark/light mode support
-- Responsive design for all screen sizes
-
----
-
-## 🎨 Customization Guide
-
-Want to make this your own? Here's what you can extend:
-
-### Easy Customization:
-1. **System Prompt** - Edit `backend/main.py` to change AI personality
-2. **Colors/Theme** - Modify `frontend/app/globals.css` gradient values
-3. **Models** - Add more free models in `backend/main.py` model_map
-4. **Landing Page** - Update hero text and features in `app/page.js`
-
-### Advanced Extensions:
-1. **Add Database** - PostgreSQL/MongoDB for user accounts & chat history
-2. **Authentication** - Implement JWT tokens for user login
-3. **Real Dashboard** - Connect actual user stats and learning progress
-4. **Bookmarks** - Save favorite AI responses to database
-5. **Session History** - Store and load previous conversations
-6. **User Profiles** - Add account settings and preferences
-7. **Payment Integration** - Upgrade to paid AI models with Stripe
-
-**💡 Tip:** The current UI serves as a complete design system. Just add backend logic!
-
----
-
-## 🔧 Configuration
-
-### Backend `.env`
-```env
-OPENAI_API_KEY=your_openrouter_api_key
+backend/
+  main.py       routes, fallback loop, usage accounting
+  models.py     the model catalogue and the fallback rules
+frontend/
+  app/page.js         landing
+  app/tutor/page.js   the chat, the picker, the running cost
+  lib/api.js          the calls to the backend
 ```
-
-### Frontend `.env.local`
-```env
-NEXT_PUBLIC_API_URL=http://localhost:8000
-```
-
----
 
 ## Pages
 
 1. **Landing** (`/`) - what it is and what it costs
 2. **Tutor** (`/tutor`) - the chat, the model picker, the running cost
 
-There used to be a dashboard, an about page and a sign-in page. All three
-were mockups with invented data, as were the testimonials and the usage
-figures on the landing page, so they have been removed rather than left
-to look like features.
+There used to be a dashboard, an about page and a sign-in page. All three were
+mockups over invented data, as were the testimonials and the usage figures on
+the landing page, so they were removed rather than left to look like features.
 
----
+## Notes
 
-## 🎯 Use Cases
+Python 3.12 with FastAPI, Next.js with the App Router, Tailwind and
+framer-motion. Icons are [Lucide](https://lucide.dev).
 
-- **Students**: Learn complex topics with detailed explanations
-- **Developers**: Get coding help with markdown-formatted examples
-- **Researchers**: Deep dive into technical subjects
-- **Anyone**: Ask anything and get comprehensive answers
-
----
-
-## 🤝 Contributing
-
-This is a portfolio project showcasing modern web development practices. Feel free to fork and customize!
-
----
-
-## 📄 License
-
-This project is open-source and available under the MIT License.
-
----
-
-## 🙏 Credits
-
-- **OpenRouter** - Multi-model AI API
-- **Vercel** - Next.js framework
-- **FastAPI** - Python web framework
-- **Lucide** - Icon system
-- **Framer** - Animation library
-
----
-
-## 📞 Support
-
-For detailed setup instructions, see [SETUP.md](./SETUP.md)  
-For architecture details, see [ARCHITECTURE.md](./ARCHITECTURE.md)
-
----
-
-**Built with ❤️ using modern web technologies**
+Built by [Hussain Nawaz](https://hussainnawaz.vercel.app).
